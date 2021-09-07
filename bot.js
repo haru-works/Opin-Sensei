@@ -106,20 +106,20 @@ const opinEmoji = '🅾';
       //                    "Nさん\nOさん\nPさん\nQさん\nRさん\nSさん\nTさん\nUさん\nVさん\nWさん\nZさん\nXさん\nYさん\nZさん\n" +
       //                    "1さん\n2さん\n3さん\n4さん\n5さん\n6さん\n7さん\n8さん\n9さん\n0さん\n";
       const description = "";
-      const gvgAttend = await message.guild.channels.cache.get(message.channel.id).send({
+      const opinAttend = await message.guild.channels.cache.get(message.channel.id).send({
         embed: {
           color: 0x7289da,
           title: title,
           description: description
        }
       });
-      gvgAttend.react(opinEmoji); 
+      opinAttend.react(opinEmoji); 
 
       //ボタン生成
       const button = new opinButton.MessageButton()
       .setStyle('green')
       .setLabel('シャッフル！')
-      .setID('opin-button_' + gvgAttend.id);
+      .setID('opin-button_' + opinAttend.id);
 
       //ボタン送信 
       message.channel.send('オピン参加者がそろったらシャッフルボタンを押してね！', button);
