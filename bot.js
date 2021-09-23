@@ -4,7 +4,13 @@
 //
 //修正履歴------------------------------------------------------
 //2021/09/07  ver.1.0.0  正式リリース
+//2021/09/23  ver.1.0.1  チーム分けロジック修正
 //--------------------------------------------------------------
+
+//--------------------------------------------------------------
+//Version情報
+//--------------------------------------------------------------
+const bot_version = "ver.1.0.1";
 
 //--------------------------------------------------------------
 //ライブラリインポート
@@ -15,12 +21,13 @@ require('dotenv').config();
 const Discord = require('discord.js');
 //日付取得ライブラリ
 require('date-utils');
+let nowFormatted = new Date().toFormat("YYYYMMDDHH24MISS");
 //ログ出力設定
 const log4js = require('log4js')
 //ログファイル出力設定
 log4js.configure({
   appenders : {
-    bot : {type : 'file', filename : 'botlog.log'}
+    bot : {type : 'file', filename : "botlog_" + nowFormatted +".log"}
   },
   categories : {
     default : {appenders : ['bot'], level : 'trace'},
@@ -54,6 +61,7 @@ const OPIN_SANKA = '🅾';
 const OPIN_READER = '🧙‍♂️';
 const OPIN_DEL = '❎';
 const TEAM_COUNT = 10;
+const AMARI_COUNT = 8;
 
 
 //--------------------------------------------------------------
@@ -80,6 +88,9 @@ const TEAM_COUNT = 10;
   discordClient.once('ready', () => {
     logger.info("Discord connection successful !");
     logger.info("Discord Bot ready !");
+    console.log("Discord connection successful !");
+    console.log("Discord Bot ready !");
+    discordClient.user.setActivity(bot_version, { type: "PLAYING" },{ status: "online" });
     return ;
   });
 
@@ -95,6 +106,8 @@ const TEAM_COUNT = 10;
     const [commandOpin, ...argsOpin] = message.content.split(' ')
     if ((commandOpin === `${prefix}opin`)) {
 
+      //ログ出力
+      logger.info(commandOpin + "コマンド実行ユーザー:" + message.author.username);
       logger.info("チャンネルID" + message.channel.id);
       logger.info("オピン参加確認メッセージ処理をします");
 
@@ -104,11 +117,8 @@ const TEAM_COUNT = 10;
 
       //オピン参加表示送信
       const title = "☆☆オピン参加確認☆☆";
-      //const opinMember = "";
+      const opinMember = "";
 
-      //デバッグ
-      const opinMember = "Aさん\nBさん\nCさん\nDさん\nEさん\nFさん\nGさん\nHさん\nIさん\nJさん\nKさん\nLさん\nMさん\n" +
-                          "Nさん\nOさん\nPさん\nQさん\nRさん\nSさん\nTさん\nUさん\nVさん\nWさん\nZさん\nXさん\nYさん\nZさん\n";
       //埋め込みメッセージ生成
       const opinAttendEmbed = await message.guild.channels.cache.get(message.channel.id).send({
         embed: {
@@ -132,7 +142,7 @@ const TEAM_COUNT = 10;
 
       //ボタン送信 
       message.channel.send('オピン参加者がそろったら[チーム編成]ボタンを押してね！', button);
-    }  
+    } 
    
   });
  
@@ -204,7 +214,8 @@ const TEAM_COUNT = 10;
     button.channel.messages.fetch(messageId).then( async targetMessage => {
 
       //メンバー情報取得
-      var member = targetMessage.embeds[0].description;
+      var member = [];
+      member = targetMessage.embeds[0].description;
 
       if(member === null){
         //ボタン押下完了メッセージ
@@ -217,7 +228,11 @@ const TEAM_COUNT = 10;
       //メッセージ送信 
       button.channel.send(OPIN_READER + "マークが付いている人がオピン部屋を作ってね！");
       //ここにランダム処理
-      var teamList = generateOpinTeam(member,TEAM_COUNT);
+      var teamList = generateOpinTeam(member,TEAM_COUNT,AMARI_COUNT);
+
+      logger.info("teamList:") 
+      logger.info(teamList) 
+
       //オピン参加チーム送信
       sendOpinTeam(button,teamList,TEAM_COUNT);
 
@@ -270,25 +285,61 @@ const TEAM_COUNT = 10;
   };
 
   //--------------------------------------------------------------
+  // オピン参加チーム送信
+  //--------------------------------------------------------------
+  async function sendOpinTeam(button,teamList,cnt)
+  {
+    //オピン参加チーム送信
+    for(var i =0;i<teamList.length;i++){
+
+      var title = "オピンチーム_" + (i+1) ;
+
+      //チームメンバー生成
+      var teamMember = "";
+      for(var j =0; j < teamList[i].length; j++){
+        //先頭の人が隊長（部屋作る人）
+        if(j === 0){
+          teamList[i][j] = teamList[i][j] + OPIN_READER;
+        }
+        //メンバー生成
+        teamMember = teamMember + teamList[i][j] + "\n";
+      }
+
+      //メンバーカウント取得
+      var count = "";
+      if(teamList[i].length === cnt){
+        count = "計" + teamList[i].length + "名";
+      }else{
+        count = "計" + teamList[i].length + "名 ＋ 野良" + (cnt - teamList[i].length) + "名";
+      }
+
+      //埋め込みメッセージ生成
+      const opinTeamEmbed = await button.channel.send({
+      embed: {
+            color: "RANDOM",
+            title: title,
+            description: teamMember,
+            timestamp: new Date(),
+            footer: {
+              text: count
+            },
+          }
+      });
+    }
+    return;
+  };
+
+  //--------------------------------------------------------------
   // ランダムチーム編成
   //--------------------------------------------------------------
-  function generateOpinTeam(member,cnt)
+  function generateOpinTeam(member,cnt,amari)
   {
     //分割してユーザーに格納
     var userList = member.split("\n");
     //シャッフルしてユーザーリストにセット
     var shuffleUserList = shuffle(userList);
-    //配列の長さ
-    var b = shuffleUserList.length,
-    //新しい配列
-    newUserList = [];
-    for(var i = 0; i < Math.ceil(b / cnt); i++) {
-      var j = i * cnt;
-      // i*cnt番目からi*cnt+cnt番目まで取得
-      var p = shuffleUserList.slice(j, j + cnt); 
-      // 取得したものをnewUserListに追加
-      newUserList.push(p);
-    }
+    //チーム分け処理
+    newUserList = splitGroup(shuffleUserList,cnt,amari);
     return newUserList;
   };
 
@@ -304,6 +355,73 @@ const TEAM_COUNT = 10;
       [arr[j], arr[i]] = [arr[i], arr[j]]; 
     }
     return arr;
+  };
+
+  //--------------------------------------------------------------
+  // 出席者の数に応じてチーム分けする関数
+  //--------------------------------------------------------------
+  function splitGroup(groupList,cnt,amari) {
+  // 合計数
+  var count = groupList.length;
+  // 分割人数
+  var minNumber = cnt;
+  // 余り人数以下の場合、1つ前のチームと足して均等にする
+  var amariNumber = amari;
+  // 親配列
+  var newArray = [];
+  // 余り配列
+  var newTmpAmariArray = [];
+  // 編集用配列
+  var editArray = [];
+
+  //分割人数以下ならそのまま配列を返す
+  if(count <= minNumber){
+    newArray.push(groupList);
+    return newArray;
+  }
+
+  //minNumberで分割していく
+  for(var i=0; i < Math.ceil(count / minNumber); i++) {
+    var j = i * minNumber;
+    // 開始番号から終了番目までのデータを取得
+    var tmp = groupList.slice(j, j + minNumber); 
+    
+    //もし最後のチーム配列が余り人数以下の場合
+    if (tmp.length < amariNumber) {
+      //余り配列に格納
+      for(var l=0; l < tmp.length; l++) {
+        newTmpAmariArray.push(tmp[l]);
+      }
+    } else {
+      // 余りがない場合は、通常チーム配列にセット
+      newArray.push(tmp);
+    }
+  }
+
+  //もしあまり配列があったら、newArrayの最後のチーム配列に足して2で割る。
+  if (newTmpAmariArray.length > 0){
+
+    // 配列に追加する時のオフセット
+    var offset = 0;
+    var span = 1;
+    // 余りの要素を編集用配列にセット
+    for(var m=0; m<newTmpAmariArray.length; m++) {
+      var splitData = newTmpAmariArray.slice(offset, span);
+      editArray.push(splitData[0]);
+      offset = offset + 1;
+      span = span + 1;
+    }
+
+    //1つ前の配列を編集用配列にセット
+    for(var n=0; n<newArray[newArray.length -1].length; n++) {
+      editArray.push(newArray[newArray.length -1][n]);
+    }
+
+    //半分づつに分ける
+    newArray[newArray.length -1] = editArray.slice(0,(editArray.length/2));
+    newArray.push(editArray.slice((editArray.length/2)));
+  }
+  return newArray;
   };
 
   //--------------------------------------------------------------
@@ -333,8 +451,8 @@ const TEAM_COUNT = 10;
       });
 
       //デバッグ
-      namelist = "Aさん\nBさん\nCさん\nDさん\nEさん\nFさん\nGさん\nHさん\nIさん\nJさん\nKさん\nLさん\nMさん\n" +
-                 "Nさん\nOさん\nPさん\nQさん\nRさん\nSさん\nTさん\nUさん\nVさん\nWさん\nZさん\nXさん\nYさん\nZさん\n" + namelist;
+      //namelist = "Aさん\nBさん\nCさん\nDさん\nEさん\nFさん\nGさん\nHさん\nIさん\nJさん\nKさん\nLさん\nMさん\n" +
+      //           "Nさん\nOさん\nPさん\nQさん\nRさん\nSさん\nTさん\nUさん\nVさん\nWさん\nZさん\nXさん\nYさん\nZさん\n" + namelist;
 
       //埋め込みメッセージ更新
       const embed = new Discord.MessageEmbed()
